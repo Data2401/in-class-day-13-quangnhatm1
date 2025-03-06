@@ -1,5 +1,6 @@
 ---
 title: "Intro to dplyr -  Lab"
+author: "Quang Le"
 output: html_document
 ---
 ```{r}
@@ -26,13 +27,18 @@ my_flights <- flights ## getting a copy of the data in the environment
 1. Use functions to inspect it: how many rows and columns does it have? What are the names of the columns? Hint: Use `??flights` to search for documentation on the data set (for what the columns contain)
 
 ```{r}
-
+dim(flights)
+ncol(flights)
 ```
-
+```{r}
+flights %>% select(everything(),-month,-day,-year) %>% filter(flights$carrier =="UA") %>% mutate(isdelay =(dep_delay>0))
+```
 
 2. Use `dplyr` to give the data frame a new column that is the amount of time gained or lost while flying (that is: how much of the delay arriving occurred during flight, as opposed to before departing).
 
 ```{r}
+flights <- flights %>% mutate(flight_time_change = arr_delay- dep_delay)
+print(flights)
 
 ```
 
@@ -41,26 +47,35 @@ my_flights <- flights ## getting a copy of the data in the environment
 3. Use `dplyr` to sort your data frame in descending order by the column you just created. Remember to save this as a variable (or in the same one!)
 
 ```{r}
-
+flights <- flights %>% arrange(-flight_time_change)
+print(flights)
 ```
 
 4. If you haven't already, do the last 2 steps in a single statement using the pipe operator. 
 
 ```{r}
+flights <- flights %>% mutate(flight_time_change = arr_delay-dep_delay) %>% arrange(-flight_time_change)
+print(flights)
 
 ```
 
 5. Make a histogram of the amount of time gained using the `hist()` function
 
 ```{r}
-
+hist(flights$flight_time_change, 
+     main = "Histogram of Time Gained/Lost During Flight",
+     xlab = "Time Gained/Lost (minutes)",
+     ylab = "Frequency",
+     col = "lightblue",
+     border = "black")
+library(plotly)
 ```
 
 
 6. On average, did flights gain or lose time? Note: use the `na.rm = TRUE` argument to remove NA values from your aggregation
 
 ```{r}
-
+mean(flights$flight_time_change)
 
 ```
 
@@ -68,7 +83,8 @@ my_flights <- flights ## getting a copy of the data in the environment
 7. Create a data.frame of flights with a destination of Hobby Airport (Airport code 'HOU'), only including the origin, destination, and the "made_up_time" column you just created
 
 ```{r}
-
+hou_flights <- flights %>% filter(dest =="HOU") %>% select(origin, dest, flight_time_change)
+hou_flights
 ```
 
 
@@ -76,7 +92,8 @@ my_flights <- flights ## getting a copy of the data in the environment
 
 
 ```{r}
-
+SEA_average <- flights %>%  filter(dest=="SEA") %>% summarise(mean_flight_time_change = mean(flight_time_change, na.rm =TRUE))
+SEA_average
 
 ```
 
@@ -87,21 +104,27 @@ my_flights <- flights ## getting a copy of the data in the environment
 Go back to our flights exercise data. Consider flights from JFK to SEA. What was the average, min, and max air time of those flights? Use pipes to answer this question in one statement (without showing any other data)!
 
 ```{r}
-
+flights_JFK_SEA <- flights %>% filter(origin=="JFK", dest=="SEA") %>% summarise(average_air_time= mean(air_time,na.rm=TRUE),                          min_air =min(air_time,na.rm=TRUE), 
+                                                    max_air =max(air_time,na.rm =TRUE))
+flights_JFK_SEA
+                                                                                       
 
 ```
 
 Consider flights coming into Houston (HOU and IAH). What is the mean arrival delay by departure airport? 
 
 ```{r}
-
-
+Hou_coming <- flights %>% filter(dest %in% c("HOU","IAH")) %>% 
+group_by(origin) %>% 
+  summarise(mean_arr = mean(arr_delay,na.rm=TRUE))
+Hou_coming
 ```
 
 Getting ready for next class: Create a list of all the different values for the destination airport.
 
 ```{r}
-
+dest_airport <- flights %>% distinct(dest) %>% pull(dest)
+print(dest_airport)
 
 ```
 
@@ -133,8 +156,10 @@ starwars %>% filter(species == "Human") %>% plot(mass ~ height, data = .)
 Now, change this to see the same plot for the Droids. 
 
 ```{r}
+droids <- starwars %>% filter(species == "Droid")
+plot(droids$height, droids$mass)
 
-
+starwars %>% filter(species == "Droid") %>% plot(mass ~ height, data = .)
 ```
 
 
@@ -142,28 +167,39 @@ How many characters are from each planet?
 
 ```{r}
 
-
-
+planet_counts <- starwars %>%
+  group_by(homeworld) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+planet_counts
 ```
 
 If you wanted to arrange this in descending order, what would you add to the pipe? 
 
 ```{r}
-
+planet_counts <- starwars %>%
+  group_by(homeworld) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+planet_counts
 ```
 
 Find the average height for each eye color. You might find some of the answers to be strange, but keep going! 
 
 ```{r}
-
-
+average_height_eye_color <- starwars %>%
+  group_by(eye_color) %>%
+  summarise(mean_height = mean(height, na.rm = TRUE))
+average_height_eye_color
 ```
 
 So.... What's with the NAs? Filter down to just brown eyes find out what's going on. 
 
 
 ```{r}
-
+brown_eyed_characters <- starwars %>%
+  filter(eye_color == "brown")
+brown_eyed_characters
 
 ```
 
@@ -171,7 +207,10 @@ Okay, so we have missing data here. Try summarising with `na.omit(height)` inste
 
 
 ```{r}
-
+average_height_eye_color <- starwars %>%
+  group_by(eye_color) %>%
+  summarise(mean_height = mean(na.omit(height)))
+average_height_eye_color
 
 ```
 
@@ -179,7 +218,23 @@ So, who is the tallest male? How many blue eyed women are there? How many gender
 
 
 ```{r}
+tallest_male <- starwars %>%
+  filter(gender == "male") %>%
+  arrange(desc(height)) %>%
+  slice(1)
 
+tallest_male
+
+blue_eyed_women_count <- starwars %>%
+  filter(eye_color == "blue", gender == "female") %>%
+  summarise(count = n())
+
+blue_eyed_women_count
+
+gender_count <- starwars %>%
+  summarise(unique_genders = n_distinct(gender))
+
+gender_count
 ```
 
 
